@@ -7,7 +7,7 @@ use test_helpers::*;
 
 #[async_std::test]
 async fn test_root() -> Result<(), Box<dyn std::error::Error>> {
-	dotenv().ok();
+	test_setup();
 	let mut server = server().await?;
 	server.at("/").get(root_endpoint);
 	let got: Value = server.get("/").recv_json().await?;
