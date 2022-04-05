@@ -1,10 +1,10 @@
 use std::ffi::OsStr;
 
 use dotenv::dotenv;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::Pool;
 use sqlx::{postgres::Postgres, query_as};
+use sqlx::{query, Pool};
 use tide::{Request, Response};
 use tide::{Server, StatusCode};
 use uuid::Uuid;
@@ -42,7 +42,7 @@ pub async fn make_pg_pool<S: AsRef<OsStr>>(pg_env: S) -> Result<Pool<Postgres>, 
 pub fn server(pool: Pool<Postgres>) -> Server<State> {
 	let mut app: Server<State> = Server::with_state(State { db_pool: pool });
 	app.at("/").get(root_endpoint);
-	app.at("/users").get(get_users);
+	app.at("/users").get(get_users).post(post_user);
 	app
 }
 
@@ -62,6 +62,28 @@ pub async fn get_users(req: Request<State>) -> tide::Result<Response> {
 
 	let mut resp = Response::new(StatusCode::Ok);
 	resp.set_body_json(&users)?;
+	Ok(resp)
+}
+
+// TODO: map invalid data error to 400 status code.
+
+/// Add new user to database
+pub async fn post_user(mut req: Request<State>) -> tide::Result<Response> {
+	let body: CreateUser = req.body_json().await?;
+	let pool = &req.state().db_pool;
+	query!(
+		r#"
+			insert into users (id, username)
+			values ($1, $2)
+		"#,
+		Uuid::new_v4(),
+		body.username,
+	)
+	.execute(pool)
+	.await?;
+
+	let mut resp = Response::new(StatusCode::Created);
+	resp.set_body_json(&json!({"message": "user created"}))?;
 	Ok(resp)
 }
 
@@ -85,5 +107,10 @@ pub struct State {
 #[derive(Debug, Serialize)]
 struct User {
 	id: Uuid,
+	username: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateUser {
 	username: String,
 }
