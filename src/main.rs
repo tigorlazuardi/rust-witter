@@ -19,7 +19,7 @@ async fn main() -> Result<(), Error> {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum Error {
+pub enum Error {
 	#[error(transparent)]
 	DbError(#[from] sqlx::Error),
 
@@ -31,7 +31,7 @@ enum Error {
 }
 
 /// description
-async fn server() -> Result<Server<State>, Error> {
+pub async fn server() -> Result<Server<State>, Error> {
 	let db_url = std::env::var("DATABASE_URL")?;
 	let pool = Pool::<Postgres>::connect(&db_url).await?;
 
@@ -42,7 +42,7 @@ async fn server() -> Result<Server<State>, Error> {
 }
 
 /// Root endpoint
-async fn root_endpoint(req: Request<State>) -> tide::Result<Value> {
+pub async fn root_endpoint(req: Request<State>) -> tide::Result<Value> {
 	let state = &req.state().db_pool;
 	let rows = query!("select 1 as one").fetch_one(state).await?;
 	dbg!(rows);
@@ -51,6 +51,6 @@ async fn root_endpoint(req: Request<State>) -> tide::Result<Value> {
 }
 
 #[derive(Debug, Clone)]
-struct State {
+pub struct State {
 	db_pool: Pool<Postgres>,
 }
