@@ -1,12 +1,13 @@
 use std::ffi::OsStr;
 
 use dotenv::dotenv;
+use serde::Serialize;
 use serde_json::{json, Value};
-use sqlx::postgres::Postgres;
-use sqlx::query;
 use sqlx::Pool;
-use tide::Request;
-use tide::Server;
+use sqlx::{postgres::Postgres, query_as};
+use tide::{Request, Response};
+use tide::{Server, StatusCode};
+use uuid::Uuid;
 
 #[cfg(test)]
 mod tests;
@@ -41,19 +42,48 @@ pub async fn make_pg_pool<S: AsRef<OsStr>>(pg_env: S) -> Result<Pool<Postgres>, 
 pub fn server(pool: Pool<Postgres>) -> Server<State> {
 	let mut app: Server<State> = Server::with_state(State { db_pool: pool });
 	app.at("/").get(root_endpoint);
+	app.at("/users").get(get_users);
 	app
 }
 
 /// Root endpoint
-pub async fn root_endpoint(req: Request<State>) -> tide::Result<Value> {
-	let state = &req.state().db_pool;
-	let rows = query!("select 1 as one").fetch_one(state).await?;
-	dbg!(rows);
+pub async fn root_endpoint(_: Request<State>) -> tide::Result<Value> {
 	let js = json!({"message": "server is running"});
 	Ok(js)
+}
+
+/// Get users from database
+pub async fn get_users(req: Request<State>) -> tide::Result<Response> {
+	let pool = &req.state().db_pool;
+
+	let users: Vec<User> = query_as!(User, "select id, username from users")
+		.fetch_all(pool)
+		.await?;
+
+	let mut resp = Response::new(StatusCode::Ok);
+	resp.set_body_json(&users)?;
+	Ok(resp)
+}
+
+pub trait SetBodyJson {
+	fn set_body_json<T: Serialize>(&mut self, t: &T) -> Result<(), serde_json::Error>;
+}
+
+impl SetBodyJson for Response {
+	fn set_body_json<T: Serialize>(&mut self, t: &T) -> Result<(), serde_json::Error> {
+		let val = serde_json::to_value(t)?;
+		self.set_body(val);
+		Ok(())
+	}
 }
 
 #[derive(Debug, Clone)]
 pub struct State {
 	db_pool: Pool<Postgres>,
+}
+
+#[derive(Debug, Serialize)]
+struct User {
+	id: Uuid,
+	username: String,
 }
