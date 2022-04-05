@@ -1,3 +1,5 @@
+use std::ffi::OsStr;
+
 use dotenv::dotenv;
 use serde_json::{json, Value};
 use sqlx::postgres::Postgres;
@@ -13,7 +15,7 @@ mod tests;
 async fn main() -> Result<(), Error> {
 	dotenv().ok();
 	pretty_env_logger::init();
-	let app = server().await?;
+	let app = server(make_pg_pool("DATABASE_URL").await?);
 	app.listen("127.0.0.1:5000").await?;
 	Ok(())
 }
@@ -30,15 +32,16 @@ pub enum Error {
 	EnvVarError(#[from] std::env::VarError),
 }
 
-/// description
-pub async fn server() -> Result<Server<State>, Error> {
-	let db_url = std::env::var("DATABASE_URL")?;
-	let pool = Pool::<Postgres>::connect(&db_url).await?;
+pub async fn make_pg_pool<S: AsRef<OsStr>>(pg_env: S) -> Result<Pool<Postgres>, Error> {
+	let db_url = std::env::var(pg_env.as_ref())?;
+	Ok(Pool::<Postgres>::connect(&db_url).await?)
+}
 
+/// description
+pub fn server(pool: Pool<Postgres>) -> Server<State> {
 	let mut app: Server<State> = Server::with_state(State { db_pool: pool });
 	app.at("/").get(root_endpoint);
-
-	Ok(app)
+	app
 }
 
 /// Root endpoint
