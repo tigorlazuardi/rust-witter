@@ -13,7 +13,7 @@ pub async fn test_setup() -> Server<State> {
 	let env_var = std::env::var(var).unwrap();
 	drop_db(&env_var).await;
 	exec_migrations(&env_var).await;
-	let pool = make_pg_pool("DATABASE_URL_TEST").await.unwrap();
+	let pool = make_pg_pool(var).await.unwrap();
 	server(pool)
 }
 
