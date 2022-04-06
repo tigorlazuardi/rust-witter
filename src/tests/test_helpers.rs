@@ -18,7 +18,7 @@ pub async fn test_setup() -> Server<State> {
 }
 
 pub async fn drop_db(db_url: &str) {
-	let (db_name, pg_conn) = parse_db_url(db_url);
+	let (pg_conn, db_name) = parse_db_url(db_url);
 
 	let mut conn = PgConnection::connect(pg_conn).await.unwrap();
 
@@ -51,7 +51,7 @@ pub async fn drop_db(db_url: &str) {
 }
 
 pub async fn exec_migrations(db_url: &str) {
-	let (db_name, pg_con) = parse_db_url(db_url);
+	let (pg_con, db_name) = parse_db_url(db_url);
 
 	let mut conn = PgConnection::connect(pg_con).await.unwrap();
 
@@ -83,8 +83,8 @@ pub async fn exec_migrations(db_url: &str) {
 /// Returns (db_name, postgres_con)
 pub fn parse_db_url(db_url: &str) -> (&str, &str) {
 	let separator_pos = db_url.rfind('/').unwrap();
-	let db_name = &db_url[separator_pos + 1..];
 	let pg_conn = &db_url[..separator_pos];
+	let db_name = &db_url[separator_pos + 1..];
 
-	(db_name, pg_conn)
+	(pg_conn, db_name)
 }
