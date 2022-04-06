@@ -80,10 +80,11 @@ pub async fn exec_migrations(db_url: &str) {
 		.unwrap();
 }
 
+/// Returns (db_name, postgres_con)
 pub fn parse_db_url(db_url: &str) -> (&str, &str) {
 	let separator_pos = db_url.rfind('/').unwrap();
-	let pg_conn = &db_url[separator_pos + 1..];
-	let db_name = &db_url[..separator_pos];
+	let db_name = &db_url[separator_pos + 1..];
+	let pg_conn = &db_url[..separator_pos];
 
-	(pg_conn, db_name)
+	(db_name, pg_conn)
 }
