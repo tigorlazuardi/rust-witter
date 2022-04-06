@@ -71,6 +71,7 @@ pub async fn get_users(req: Request<State>) -> tide::Result<Response> {
 pub async fn post_user(mut req: Request<State>) -> tide::Result<Response> {
 	let body: CreateUser = req.body_json().await?;
 	let pool = &req.state().db_pool;
+	let mut tx = pool.begin().await?;
 	query!(
 		r#"
 			insert into users (id, username)
@@ -79,8 +80,10 @@ pub async fn post_user(mut req: Request<State>) -> tide::Result<Response> {
 		Uuid::new_v4(),
 		body.username,
 	)
-	.execute(pool)
+	.execute(&mut tx)
 	.await?;
+
+	tx.commit().await?;
 
 	let mut resp = Response::new(StatusCode::Created);
 	resp.set_body_json(&json!({"message": "user created"}))?;
