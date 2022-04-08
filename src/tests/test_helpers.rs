@@ -1,59 +1,33 @@
-use crate::{make_pg_pool, server, State};
+use crate::{server, State};
 pub use assert_json_diff::assert_json_include;
 pub use dotenv::dotenv;
+use rand::{
+	distributions::{Alphanumeric, DistString},
+	thread_rng,
+};
 pub use serde_json::{json, Value};
-use sqlx::{Connection, PgConnection, Postgres};
+use sqlx::{Pool, Postgres};
 pub use tide::Server;
 pub use tide_testing::TideTestingExt;
 
 /// Setup testing
-pub async fn test_setup() -> Server<State> {
+pub async fn test_setup() -> (Server<State>, TestDB) {
 	dotenv().ok();
-	let var = "DATABASE_URL_TEST";
-	let env_var = std::env::var(var).unwrap();
-	drop_db(&env_var).await;
-	exec_migrations(&env_var).await;
-	let pool = make_pg_pool(var).await.unwrap();
-	server(pool)
+	let test_db = create_db_for_testing().await;
+	(server(test_db.pool.clone()), test_db)
 }
 
-pub async fn drop_db(db_url: &str) {
-	let (pg_conn, db_name) = parse_db_url(db_url);
+async fn create_db_for_testing() -> TestDB {
+	dotenv().ok();
+	let db_url = std::env::var("DATABASE_URL").unwrap();
+	let (pg_conn, db_name) = parse_db_url(&db_url);
 
-	let mut conn = PgConnection::connect(pg_conn).await.unwrap();
+	let mut rng = thread_rng();
+	let tail = Alphanumeric.sample_string(&mut rng, 5);
 
-	let query = format!(
-		r#"
-		SELECT pg_terminate_backend(pg_stat_activity.pid)
-		FROM pg_stat_activity
-		WHERE pg_stat_activity.datname = '{db}'
-		AND pid <> pg_backend_pid();
-		"#,
-		db = db_name
-	);
+	let db_name = db_name.to_owned() + &tail;
 
-	sqlx::query::<Postgres>(&query)
-		.execute(&mut conn)
-		.await
-		.unwrap();
-
-	let query = format!(
-		r#"
-        DROP DATABASE IF EXISTS "{db}";
-        "#,
-		db = db_name
-	);
-
-	sqlx::query::<Postgres>(&query)
-		.execute(&mut conn)
-		.await
-		.unwrap();
-}
-
-pub async fn exec_migrations(db_url: &str) {
-	let (pg_con, db_name) = parse_db_url(db_url);
-
-	let mut conn = PgConnection::connect(pg_con).await.unwrap();
+	let admin_pool = Pool::<Postgres>::connect(pg_conn).await.unwrap();
 
 	let query = format!(
 		r#"
@@ -63,21 +37,68 @@ pub async fn exec_migrations(db_url: &str) {
 	);
 
 	sqlx::query::<Postgres>(&query)
-		.execute(&mut conn)
+		.execute(&admin_pool)
 		.await
 		.unwrap();
 
-	drop(conn);
-	let mut conn = PgConnection::connect(db_url).await.unwrap();
+	let pg_conn = pg_conn.to_owned() + "/" + &db_name;
+	let pool = Pool::<Postgres>::connect(&pg_conn).await.unwrap();
 
 	let query = async_std::fs::read_to_string("setup/setup.sql")
 		.await
 		.unwrap();
 
 	sqlx::query::<Postgres>(&query)
-		.execute(&mut conn)
+		.execute(&pool)
 		.await
 		.unwrap();
+
+	TestDB {
+		admin_pool,
+		db_name,
+		pool,
+	}
+}
+
+#[derive(Debug)]
+pub struct TestDB {
+	db_name: String,
+	admin_pool: Pool<Postgres>,
+	pool: Pool<Postgres>,
+}
+
+impl Drop for TestDB {
+	fn drop(&mut self) {
+		let query = format!(
+			r#"
+			SELECT pg_terminate_backend(pg_stat_activity.pid)
+			FROM pg_stat_activity
+			WHERE pg_stat_activity.datname = '{db}'
+			AND pid <> pg_backend_pid();
+			"#,
+			db = self.db_name
+		);
+
+		async_std::task::block_on(async {
+			sqlx::query::<Postgres>(&query)
+				.execute(&self.admin_pool)
+				.await
+				.unwrap();
+		});
+
+		let query = format!(
+			r#"
+			DROP DATABASE IF EXISTS "{db}";
+			"#,
+			db = self.db_name
+		);
+		async_std::task::block_on(async {
+			sqlx::query::<Postgres>(&query)
+				.execute(&self.admin_pool)
+				.await
+				.unwrap();
+		});
+	}
 }
 
 /// Returns (db_name, postgres_con)

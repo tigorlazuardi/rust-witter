@@ -5,7 +5,7 @@ use crate::tests::test_helpers::*;
 
 #[async_std::test]
 async fn list_users() {
-	let server = test_setup().await;
+	let (server, _db) = test_setup().await;
 	let mut resp = server.get("/users").send().await.unwrap();
 	assert_eq!(resp.status(), StatusCode::Ok);
 	let got: Vec<Value> = resp.body_json().await.unwrap();
@@ -14,7 +14,7 @@ async fn list_users() {
 
 #[async_std::test]
 async fn create_user() {
-	let server = test_setup().await;
+	let (server, _db) = test_setup().await;
 	let mut resp = server
 		.post("/users")
 		.body(json!({"username": "tigor"}))

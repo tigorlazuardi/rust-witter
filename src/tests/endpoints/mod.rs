@@ -5,7 +5,7 @@ mod user;
 
 #[async_std::test]
 async fn test_root() -> Result<(), Box<dyn std::error::Error>> {
-	let server = test_setup().await;
+	let (server, _db) = test_setup().await;
 	let got: Value = server.get("/").recv_json().await?;
 	let expected = json!({"message": "server is running"});
 

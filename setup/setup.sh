@@ -2,11 +2,11 @@
 set -e
 set -x
 
-dropdb witter || true
-dropdb witter-test || true
+dropdb -h localhost -U tigor witter || true
+dropdb -h localhost -U tigor witter-test || true
 
-createdb witter || true
-createdb witter-test || true
+createdb -h localhost -U tigor witter || true
+createdb -h localhost -U tigor witter-test || true
 
-psql -d witter <setup/setup.sql
-psql -d witter-test <setup/setup.sql
+psql -h localhost -U tigor -d witter <setup/setup.sql
+psql -h localhost -U tigor -d witter-test <setup/setup.sql
