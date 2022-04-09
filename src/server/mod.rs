@@ -7,13 +7,17 @@ use tide::{Request, Response, Server};
 
 use crate::Result;
 
-use self::users::{get_users, post_user};
+use self::{
+	middleware::ErrorMiddleware,
+	users::{get_users, post_user},
+};
 
 pub mod middleware;
 pub mod users;
 
 pub fn server(pool: Pool<Postgres>) -> Server<State> {
 	let mut server: Server<State> = Server::with_state(State { db_pool: pool });
+	server.with(ErrorMiddleware);
 	server.at("/").get(root_endpoint);
 	server.at("/users").get(get_users).post(post_user);
 	server
