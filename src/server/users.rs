@@ -15,6 +15,7 @@ struct User {
 #[derive(Debug, Deserialize)]
 struct CreateUser {
 	username: String,
+	password: String,
 }
 
 /// Get users from database

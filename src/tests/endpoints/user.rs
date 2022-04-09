@@ -17,7 +17,7 @@ async fn create_user() {
 	let (server, _db) = test_setup().await;
 	let mut resp = server
 		.post("/users")
-		.body(json!({"username": "tigor"}))
+		.body(json!({"username": "tigor", "password": "123"}))
 		.send()
 		.await
 		.unwrap();
@@ -34,4 +34,13 @@ async fn create_user() {
 	assert_eq!(resp.status(), StatusCode::Ok);
 	let got: Vec<Value> = resp.body_json().await.unwrap();
 	assert_json_include!(actual: got, expected: json!([{"username": "tigor"}]));
+
+	let resp = server
+		.post("/users")
+		.body(json!({"username": "tigor"}))
+		.send()
+		.await
+		.unwrap();
+
+	assert_eq!(resp.status(), StatusCode::BadRequest);
 }
