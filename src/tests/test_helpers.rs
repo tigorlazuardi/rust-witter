@@ -13,7 +13,7 @@ pub use tide_testing::TideTestingExt;
 /// Setup testing
 pub async fn test_setup() -> (Server<State>, TestDB) {
 	dotenv().ok();
-	pretty_env_logger::init();
+	pretty_env_logger::try_init().ok();
 	let test_db = create_db_for_testing().await;
 	(server(test_db.pool.clone()), test_db)
 }

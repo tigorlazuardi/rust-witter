@@ -22,7 +22,10 @@ async fn create_user() {
 		.await
 		.unwrap();
 
-	assert_eq!(resp.status(), StatusCode::Created);
+	if resp.status() != StatusCode::Created {
+		println!("{}", resp.body_string().await.unwrap());
+		panic!("expected 201, got {}", resp.status());
+	}
 
 	let got: Value = resp.body_json().await.unwrap();
 	assert_json_include!(actual: got, expected: json!({"message": "user created"}));
