@@ -1,4 +1,4 @@
-use crate::{server, State};
+use crate::server::{server, State};
 pub use assert_json_diff::assert_json_include;
 pub use dotenv::dotenv;
 use rand::{
