@@ -40,11 +40,12 @@ pub async fn post_user(mut req: Request<State>) -> tide::Result<Response> {
 	let mut tx = pool.begin().await?;
 	query!(
 		r#"
-			insert into users (id, username)
-			values ($1, $2)
+			insert into users (id, username, hashed_password)
+			values ($1, $2, $3)
 		"#,
 		Uuid::new_v4(),
 		body.username,
+		body.password,
 	)
 	.execute(&mut tx)
 	.await?;
