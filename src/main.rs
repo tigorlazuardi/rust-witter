@@ -5,15 +5,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{postgres::Postgres, query_as};
 use sqlx::{query, Pool};
-use tide::{Request, Response};
+use tide::{Middleware, Request, Response};
 use tide::{Server, StatusCode};
 use uuid::Uuid;
 
 #[cfg(test)]
 mod tests;
 
+type Result<T> = std::result::Result<T, Error>;
+
 #[async_std::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<()> {
 	dotenv().ok();
 	pretty_env_logger::init();
 	let app = server(make_pg_pool("DATABASE_URL").await?);
@@ -31,19 +33,22 @@ pub enum Error {
 
 	#[error(transparent)]
 	EnvVarError(#[from] std::env::VarError),
+
+	#[error(transparent)]
+	DecodeError(#[from] serde_json::Error),
 }
 
-pub async fn make_pg_pool<S: AsRef<OsStr>>(pg_env: S) -> Result<Pool<Postgres>, Error> {
+pub async fn make_pg_pool<S: AsRef<OsStr>>(pg_env: S) -> Result<Pool<Postgres>> {
 	let db_url = std::env::var(pg_env.as_ref())?;
 	Ok(Pool::<Postgres>::connect(&db_url).await?)
 }
 
 /// description
 pub fn server(pool: Pool<Postgres>) -> Server<State> {
-	let mut app: Server<State> = Server::with_state(State { db_pool: pool });
-	app.at("/").get(root_endpoint);
-	app.at("/users").get(get_users).post(post_user);
-	app
+	let mut server: Server<State> = Server::with_state(State { db_pool: pool });
+	server.at("/").get(root_endpoint);
+	server.at("/users").get(get_users).post(post_user);
+	server
 }
 
 /// Root endpoint
@@ -91,12 +96,13 @@ pub async fn post_user(mut req: Request<State>) -> tide::Result<Response> {
 }
 
 pub trait SetBodyJson {
-	fn set_body_json<T: Serialize>(&mut self, t: &T) -> Result<(), serde_json::Error>;
+	fn set_body_json<T: Serialize>(&mut self, t: &T) -> Result<()>;
 }
 
 impl SetBodyJson for Response {
-	fn set_body_json<T: Serialize>(&mut self, t: &T) -> Result<(), serde_json::Error> {
+	fn set_body_json<T: Serialize>(&mut self, t: &T) -> Result<()> {
 		let val = serde_json::to_value(t)?;
+		self.insert_header("Content-Type", "application/json; utf-8");
 		self.set_body(val);
 		Ok(())
 	}

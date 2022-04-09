@@ -13,13 +13,14 @@ pub use tide_testing::TideTestingExt;
 /// Setup testing
 pub async fn test_setup() -> (Server<State>, TestDB) {
 	dotenv().ok();
+	pretty_env_logger::init();
 	let test_db = create_db_for_testing().await;
 	(server(test_db.pool.clone()), test_db)
 }
 
 async fn create_db_for_testing() -> TestDB {
 	dotenv().ok();
-	let db_url = std::env::var("DATABASE_URL").unwrap();
+	let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 	let (pg_conn, db_name) = parse_db_url(&db_url);
 
 	let mut rng = thread_rng();
@@ -39,19 +40,24 @@ async fn create_db_for_testing() -> TestDB {
 	sqlx::query::<Postgres>(&query)
 		.execute(&admin_pool)
 		.await
-		.unwrap();
+		.expect("failed to create test database");
 
 	let pg_conn = pg_conn.to_owned() + "/" + &db_name;
 	let pool = Pool::<Postgres>::connect(&pg_conn).await.unwrap();
 
 	let query = async_std::fs::read_to_string("setup/setup.sql")
 		.await
-		.unwrap();
+		.expect("failed to read setup.sql");
 
-	sqlx::query::<Postgres>(&query)
-		.execute(&pool)
-		.await
-		.unwrap();
+	for query in query.split(';') {
+		if query.trim().is_empty() {
+			continue;
+		}
+		sqlx::query::<Postgres>(query)
+			.execute(&pool)
+			.await
+			.expect("failed to run setup query");
+	}
 
 	TestDB {
 		admin_pool,
